@@ -1,7 +1,7 @@
 import streamlit as st
 import time
 from langchain_community.chat_models import ChatOpenAI  # Nuovo import
-from langchain_community.chains import RetrievalQA
+from langchain_community.chains import RetrievalQA  # Verifica se questa importazione funziona
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
