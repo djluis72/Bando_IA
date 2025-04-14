@@ -2,9 +2,9 @@ import streamlit as st
 import time
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
-from langchain.document_loaders import PyPDFLoader
-from langchain.vectorstores import FAISS
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.document_loaders import PyPDFLoader  # Nuovo import
+from langchain_community.vectorstores import FAISS  # Nuovo import
+from langchain_community.embeddings import OpenAIEmbeddings  # Nuovo import
 
 # Gestione compatibilità RateLimitError (versioni diverse della libreria openai)
 try:
