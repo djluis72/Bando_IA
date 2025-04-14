@@ -6,6 +6,7 @@ from langchain.document_loaders import PyPDFLoader
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 import openai
+from openai import error  # Aggiungi questa importazione per gestire gli errori di OpenAI
 
 # Carica la chiave da Streamlit Cloud (segreti)
 OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -21,7 +22,7 @@ def embed_with_retry(texts, embedding_model, max_retries=5):
     while retry_attempts < max_retries:
         try:
             return embedding_model.embed_documents(texts)
-        except openai.error.RateLimitError as e:
+        except error.RateLimitError as e:  # Usa 'error.RateLimitError' invece di 'openai.error.RateLimitError'
             retry_attempts += 1
             wait_time = 2 ** retry_attempts  # Backoff esponenziale
             print(f"Rate limit exceeded, retrying in {wait_time} seconds...")
