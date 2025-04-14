@@ -64,9 +64,5 @@ qa = create_qa()
 query = st.text_input("Scrivi la tua domanda:", placeholder="Esempio: Quali sono i requisiti per la borsa?")
 if query:
     with st.spinner("Sto cercando la risposta nel bando..."):
-
-if query:
-    with st.spinner("Sto cercando la risposta nel bando..."):
         result = qa({"query": query})
         st.success(result["result"])
-
