@@ -49,4 +49,22 @@ def create_qa():
     retriever = faiss_index.as_retriever(search_kwargs={"k": 3})
 
     qa = RetrievalQA.from_chain_type(
-        llm=Chat
+        llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY),
+        chain_type="stuff",
+        retriever=retriever,
+        return_source_documents=False
+    )
+    return qa
+
+# Inizializza il sistema
+qa = create_qa()
+
+# Interfaccia utente per la domanda
+query = st.text_input("Scrivi la tua domanda:", placeholder="Esempio: Quali sono i requisiti per la borsa?")
+if query:
+    with st.spinner("Sto cercando la risposta nel bando..."):
+        try:
+            result = qa({"query": query})
+            st.success(result["result"])
+        except Exception as e:
+            st.error(f"Errore durante la risposta: {e}")
