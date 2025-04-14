@@ -21,7 +21,7 @@ def create_qa():
     documents = loader.load()
 
     embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-    vectordb = Chroma.from_documents(documents, embeddings)
+    vectordb = Chroma.from_documents(documents, embeddings, persist_directory="./chroma_db")
     retriever = vectordb.as_retriever(search_kwargs={"k": 3})
 
     qa = RetrievalQA.from_chain_type(
