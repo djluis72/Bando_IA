@@ -1,61 +1,41 @@
 import streamlit as st
-from langchain.document_loaders import PyPDFLoader
-from sentence_transformers import SentenceTransformer
-import faiss
-import numpy as np
-import pickle
-import os
+import PyPDF2
+from io import BytesIO
 
-# Imposta la configurazione della pagina Streamlit
-st.set_page_config(page_title="Motore di Ricerca del Bando", page_icon="📄")
-st.title("Motore di Ricerca del Bando EDISU")
-st.markdown("Fai una domanda sul bando A.A. 2024/25. L'IA risponde solo sul contenuto del bando PDF.")
+# Funzione per leggere il contenuto del PDF
+def read_pdf(file):
+    pdf_reader = PyPDF2.PdfReader(file)
+    text = ''
+    for page_num in range(len(pdf_reader.pages)):
+        page = pdf_reader.pages[page_num]
+        text += page.extract_text()
+    return text
 
-# Percorso del PDF
-pdf_path = "bando.pdf"
-CACHE_PATH = "bando_cache.pkl"
-
-# Carica e crea gli embeddings solo se non esiste la cache
-def create_embeddings():
-    if os.path.exists(CACHE_PATH):
-        with open(CACHE_PATH, "rb") as f:
-            embeddings, index = pickle.load(f)
-        st.write("Modello caricato dalla cache!")
+# Funzione per rispondere alle domande (molto semplice, basato su ricerca nel testo)
+def simple_answer(text, query):
+    if query.lower() in text.lower():
+        return f"La domanda '{query}' è presente nel documento!"
     else:
-        # Carica il PDF e creazione degli embeddings
-        loader = PyPDFLoader(pdf_path)
-        documents = loader.load()
+        return "La domanda non è presente nel documento."
 
-        # Carica il modello pre-addestrato Sentence-BERT
-        model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+# Interfaccia utente Streamlit
+st.title("Domande sul PDF")
 
-        # Crea gli embeddings per il documento
-        embeddings = [model.encode(doc.page_content) for doc in documents]
+# Caricamento del PDF
+uploaded_file = st.file_uploader("Carica il tuo documento PDF", type="pdf")
 
-        # Crea un indice FAISS per la ricerca
-        faiss_index = faiss.IndexFlatL2(len(embeddings[0]))  # Indice per la ricerca (distanza euclidea)
-        faiss_index.add(np.array(embeddings))  # Aggiungi gli embeddings all'indice
+if uploaded_file is not None:
+    # Leggi il contenuto del PDF
+    pdf_text = read_pdf(uploaded_file)
 
-        with open(CACHE_PATH, "wb") as f:
-            pickle.dump((embeddings, faiss_index), f)
-        
-        st.write("Modello creato e memorizzato nella cache!")
-    return embeddings, faiss_index
+    # Mostra il contenuto del PDF (opzionale)
+    st.subheader("Contenuto del PDF:")
+    st.text(pdf_text[:1000])  # Mostra solo i primi 1000 caratteri per evitare troppi dati
 
-# Crea o carica gli embeddings
-embeddings, faiss_index = create_embeddings()
+    # Campo per inserire la domanda
+    query = st.text_input("Fai una domanda sul contenuto del PDF:")
 
-# Input della query
-query = st.text_input("Scrivi la tua domanda:", placeholder="Esempio: Quali sono i requisiti per la borsa?")
-if query:
-    with st.spinner("Sto cercando la risposta nel bando..."):
-        # Calcola l'embedding della query
-        query_embedding = SentenceTransformer('paraphrase-MiniLM-L6-v2').encode([query])
-
-        # Cerca la query nell'indice FAISS
-        distances, indices = faiss_index.search(np.array(query_embedding), k=3)
-
-        # Ottieni le risposte più pertinenti dai documenti
-        st.write("Le risposte più pertinenti:")
-        for i in range(len(indices[0])):
-            st.write(f"**Risposta {i + 1}:** {documents[indices[0][i]].page_content[:500]}...")
+    if query:
+        # Rispondi alla domanda (funzione di ricerca semplice)
+        answer = simple_answer(pdf_text, query)
+        st.write(answer)
