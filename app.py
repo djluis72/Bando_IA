@@ -1,52 +1,27 @@
 import streamlit as st
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.vectorstores import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.chains import RetrievalQA
-from langchain.llms import HuggingFaceHub
-import os
+from transformers import pipeline
 
-# Configurazione Streamlit
-st.set_page_config(page_title="IA Bando Gratuita", page_icon="📄")
-st.title("IA Bando Gratuita")
-st.markdown("Fai una domanda sul bando PDF. Nessuna API a pagamento necessaria!")
-
+# Carica il modello solo una volta
 @st.cache_resource
-def create_qa():
-    # Carica il PDF
-    loader = PyPDFLoader("bando.pdf")
-    documents = loader.load()
+def load_model():
+    return pipeline("question-answering", model="deepset/tinyroberta-squad2")
 
-    # Usa un embedding gratuito
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+qa_pipeline = load_model()
 
-    # Costruzione FAISS
-    vectorstore = FAISS.from_documents(documents, embeddings)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+st.title("Domande su un testo PDF")
 
-    # Modello di risposta (usa un modello di HuggingFace ospitato via HuggingFaceHub)
-    llm = HuggingFaceHub(
-        repo_id="google/flan-t5-base",
-        model_kwargs={"temperature": 0.1, "max_length": 512}
-    )
+uploaded_file = st.file_uploader("Carica un file PDF", type="pdf")
+if uploaded_file is not None:
+    import PyPDF2
+    reader = PyPDF2.PdfReader(uploaded_file)
+    full_text = ""
+    for page in reader.pages:
+        full_text += page.extract_text()
 
-    qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        chain_type="stuff",
-        return_source_documents=False
-    )
+    st.text_area("Testo del bando", full_text, height=300)
 
-    return qa_chain
-
-qa = create_qa()
-
-# Interfaccia utente
-query = st.text_input("Scrivi la tua domanda:", placeholder="Esempio: Quali sono i requisiti per la borsa?")
-if query:
-    with st.spinner("Sto cercando la risposta nel bando..."):
-        try:
-            risposta = qa.run(query)
-            st.success(risposta)
-        except Exception as e:
-            st.error(f"Errore: {str(e)}")
+    question = st.text_input("Fai una domanda sul bando:")
+    if question:
+        with st.spinner("Sto cercando la risposta..."):
+            result = qa_pipeline(question=question, context=full_text)
+            st.markdown(f"**Risposta:** {result['answer']}")
