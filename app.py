@@ -1,52 +1,41 @@
 import streamlit as st
-import PyPDF2
-from haystack.document_stores import FAISSDocumentStore  # Verifica questa importazione
-from haystack.nodes import EmbeddingRetriever
+from haystack.document_stores import InMemoryDocumentStore
+from haystack.nodes import FARMReader, BM25Retriever
 from haystack.pipelines import ExtractiveQAPipeline
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
-from utils import load_pdf_text
+from utils import extract_text_from_pdf
+from haystack import Document
 
-# Funzione per caricare il testo da un file PDF
-def load_pdf_text(file):
-    pdf_reader = PyPDF2.PdfReader(file)
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    return text
+st.title("Domande su PDF - Gratis con Haystack")
 
-# Inizializza il document store
-document_store = FAISSDocumentStore(faiss_index_factory_str="Flat")
+uploaded_file = st.file_uploader("Carica un PDF", type="pdf")
 
-# Prepara il modello di retrieval
-retriever = EmbeddingRetriever(document_store=document_store, embedding_model="distilbert-base-uncased")
+if uploaded_file:
+    text = extract_text_from_pdf(uploaded_file)
+    if not text:
+        st.warning("Il PDF non contiene testo.")
+    else:
+        with st.spinner("Indicizzazione in corso..."):
+            # 1. Crea documenti
+            docs = [Document(content=text)]
 
-# Funzione per rispondere alla domanda
-def answer_question(question, context):
-    # Aggiungi il documento al document store
-    document_store.write_documents([{"text": context, "meta": {}}])
-    
-    # Recupera la risposta dalla pipeline di Haystack
-    qa_pipeline = ExtractiveQAPipeline(retriever=retriever)
-    result = qa_pipeline.run(query=question, params={"Retriever": {"top_k": 1}})
-    
-    return result["answers"][0]["answer"] if result["answers"] else "Nessuna risposta trovata"
+            # 2. Crea document store
+            document_store = InMemoryDocumentStore()
+            document_store.write_documents(docs)
 
-# App Streamlit
-st.title("Domande e Risposte sui Documenti PDF")
+            # 3. Retriever + Reader
+            retriever = BM25Retriever(document_store=document_store)
+            reader = FARMReader(model_name_or_path="deepset/roberta-base-squad2", use_gpu=False)
 
-# Carica il file PDF
-uploaded_file = st.file_uploader("Carica il tuo documento PDF", type="pdf")
+            # 4. Pipeline QA
+            pipe = ExtractiveQAPipeline(reader, retriever)
 
-if uploaded_file is not None:
-    # Estrai il testo dal PDF
-    text = load_pdf_text(uploaded_file)
+        query = st.text_input("Fai una domanda:")
 
-    # Visualizza una parte del testo per verificarne il contenuto
-    st.write(text[:1000])  # Mostra solo i primi 1000 caratteri del testo
-
-    # Input per la domanda
-    question = st.text_input("Inserisci la tua domanda:")
-
-    if question:
-        answer = answer_question(question, text)
-        st.write(f"Risposta: {answer}")
+        if query:
+            with st.spinner("Sto cercando la risposta..."):
+                prediction = pipe.run(
+                    query=query,
+                    params={"Retriever": {"top_k": 5}, "Reader": {"top_k": 1}},
+                )
+                answer = prediction["answers"][0].answer
+                st.success(f"Risposta: {answer}")
