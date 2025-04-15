@@ -1,2 +1,5 @@
 streamlit
+haystack
+transformers
 PyPDF2
+faiss-cpu
