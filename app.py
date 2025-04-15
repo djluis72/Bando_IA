@@ -1,70 +1,52 @@
 import streamlit as st
-import time
-from langchain_community.chat_models import ChatOpenAI  # Nuovo import
-from langchain.chains import RetrievalQA  # Usa langchain normale se langchain_community non funziona
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.chains import RetrievalQA
+from langchain.llms import HuggingFaceHub
+import os
 
-# Gestione compatibilità RateLimitError (versioni diverse della libreria openai)
-try:
-    from openai import RateLimitError
-except ImportError:
-    from openai.error import RateLimitError
+# Configurazione Streamlit
+st.set_page_config(page_title="IA Bando Gratuita", page_icon="📄")
+st.title("IA Bando Gratuita")
+st.markdown("Fai una domanda sul bando PDF. Nessuna API a pagamento necessaria!")
 
-# Carica la chiave API OpenAI da Streamlit Cloud (segreti)
-OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
-
-# Configurazione pagina Streamlit
-st.set_page_config(page_title="IA Bando EDISU", page_icon="📄")
-st.title("IA Bando EDISU")
-st.markdown("Fai una domanda sul bando A.A. 2024/25. L'IA risponde solo sul contenuto del bando PDF.")
-
-# Estensione della classe OpenAIEmbeddings con retry automatico
-class CustomOpenAIEmbeddings(OpenAIEmbeddings):
-    def embed_documents(self, texts):
-        retry_attempts = 0
-        while retry_attempts < 5:
-            try:
-                # Usa il metodo originale della classe OpenAIEmbeddings
-                return super().embed_documents(texts)
-            except RateLimitError:
-                retry_attempts += 1
-                wait_time = 2 ** retry_attempts
-                st.warning(f"Rate limit raggiunto. Attesa di {wait_time} secondi...")
-                time.sleep(wait_time)
-            except Exception as e:
-                raise e
-        raise Exception("Errore: superato numero massimo di tentativi per embedding.")
-
-# Funzione per creare il sistema di domanda-risposta
 @st.cache_resource
 def create_qa():
-    pdf_path = "bando.pdf"
-    loader = PyPDFLoader(pdf_path)
+    # Carica il PDF
+    loader = PyPDFLoader("bando.pdf")
     documents = loader.load()
 
-    embeddings = CustomOpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
-    faiss_index = FAISS.from_documents(documents, embeddings)
-    retriever = faiss_index.as_retriever(search_kwargs={"k": 3})
+    # Usa un embedding gratuito
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 
-    qa = RetrievalQA.from_chain_type(
-        llm=ChatOpenAI(temperature=0, model_name="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY),
-        chain_type="stuff",
+    # Costruzione FAISS
+    vectorstore = FAISS.from_documents(documents, embeddings)
+    retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+
+    # Modello di risposta (usa un modello di HuggingFace ospitato via HuggingFaceHub)
+    llm = HuggingFaceHub(
+        repo_id="google/flan-t5-base",
+        model_kwargs={"temperature": 0.1, "max_length": 512}
+    )
+
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
         retriever=retriever,
+        chain_type="stuff",
         return_source_documents=False
     )
-    return qa
 
-# Inizializza il sistema
+    return qa_chain
+
 qa = create_qa()
 
-# Interfaccia utente per la domanda
+# Interfaccia utente
 query = st.text_input("Scrivi la tua domanda:", placeholder="Esempio: Quali sono i requisiti per la borsa?")
 if query:
     with st.spinner("Sto cercando la risposta nel bando..."):
         try:
-            result = qa({"query": query})
-            st.success(result["result"])
+            risposta = qa.run(query)
+            st.success(risposta)
         except Exception as e:
-            st.error(f"Errore durante la risposta: {e}")
+            st.error(f"Errore: {str(e)}")
