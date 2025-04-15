@@ -1,6 +1,6 @@
 import streamlit as st
 import PyPDF2
-from haystack.document_stores import FAISSDocumentStore
+from haystack.document_stores import FAISSDocumentStore  # Verifica questa importazione
 from haystack.nodes import EmbeddingRetriever
 from haystack.pipelines import ExtractiveQAPipeline
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
