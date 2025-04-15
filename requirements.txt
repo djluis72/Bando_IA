@@ -1,8 +1,5 @@
-streamlit
-langchain
-langchain-community
-openai
+transformers
 faiss-cpu
-unstructured
-pypdf
-tiktoken
+sentence-transformers
+PyMuPDF
+
