@@ -1,5 +1,6 @@
 streamlit
-haystack
+farm-haystack[faiss]
 transformers
 PyPDF2
 faiss-cpu
+
