@@ -1,4 +1,5 @@
-streamlit
-transformers
-sentence-transformers
-PyPDF2
+streamlit==1.12.0
+langchain==0.0.99
+faiss-cpu==1.7.2
+sentence-transformers==2.2.0
+PyPDF2==1.26.0
