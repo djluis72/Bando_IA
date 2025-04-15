@@ -1,41 +1,52 @@
 import streamlit as st
 import PyPDF2
-from io import BytesIO
+from haystack.document_stores import FAISSDocumentStore
+from haystack.nodes import EmbeddingRetriever
+from haystack.pipelines import ExtractiveQAPipeline
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+from utils import load_pdf_text
 
-# Funzione per leggere il contenuto del PDF
-def read_pdf(file):
+# Funzione per caricare il testo da un file PDF
+def load_pdf_text(file):
     pdf_reader = PyPDF2.PdfReader(file)
-    text = ''
-    for page_num in range(len(pdf_reader.pages)):
-        page = pdf_reader.pages[page_num]
+    text = ""
+    for page in pdf_reader.pages:
         text += page.extract_text()
     return text
 
-# Funzione per rispondere alle domande (molto semplice, basato su ricerca nel testo)
-def simple_answer(text, query):
-    if query.lower() in text.lower():
-        return f"La domanda '{query}' è presente nel documento!"
-    else:
-        return "La domanda non è presente nel documento."
+# Inizializza il document store
+document_store = FAISSDocumentStore(faiss_index_factory_str="Flat")
 
-# Interfaccia utente Streamlit
-st.title("Domande sul PDF")
+# Prepara il modello di retrieval
+retriever = EmbeddingRetriever(document_store=document_store, embedding_model="distilbert-base-uncased")
 
-# Caricamento del PDF
+# Funzione per rispondere alla domanda
+def answer_question(question, context):
+    # Aggiungi il documento al document store
+    document_store.write_documents([{"text": context, "meta": {}}])
+    
+    # Recupera la risposta dalla pipeline di Haystack
+    qa_pipeline = ExtractiveQAPipeline(retriever=retriever)
+    result = qa_pipeline.run(query=question, params={"Retriever": {"top_k": 1}})
+    
+    return result["answers"][0]["answer"] if result["answers"] else "Nessuna risposta trovata"
+
+# App Streamlit
+st.title("Domande e Risposte sui Documenti PDF")
+
+# Carica il file PDF
 uploaded_file = st.file_uploader("Carica il tuo documento PDF", type="pdf")
 
 if uploaded_file is not None:
-    # Leggi il contenuto del PDF
-    pdf_text = read_pdf(uploaded_file)
+    # Estrai il testo dal PDF
+    text = load_pdf_text(uploaded_file)
 
-    # Mostra il contenuto del PDF (opzionale)
-    st.subheader("Contenuto del PDF:")
-    st.text(pdf_text[:1000])  # Mostra solo i primi 1000 caratteri per evitare troppi dati
+    # Visualizza una parte del testo per verificarne il contenuto
+    st.write(text[:1000])  # Mostra solo i primi 1000 caratteri del testo
 
-    # Campo per inserire la domanda
-    query = st.text_input("Fai una domanda sul contenuto del PDF:")
+    # Input per la domanda
+    question = st.text_input("Inserisci la tua domanda:")
 
-    if query:
-        # Rispondi alla domanda (funzione di ricerca semplice)
-        answer = simple_answer(pdf_text, query)
-        st.write(answer)
+    if question:
+        answer = answer_question(question, text)
+        st.write(f"Risposta: {answer}")
