@@ -1,9 +1,9 @@
 import PyPDF2
 
-# Funzione per caricare il testo da un file PDF
-def load_pdf_text(file):
+def extract_text_from_pdf(file):
     pdf_reader = PyPDF2.PdfReader(file)
     text = ""
     for page in pdf_reader.pages:
-        text += page.extract_text()
+        text += page.extract_text() or ""
     return text
+
